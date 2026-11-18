@@ -124,3 +124,11 @@ the API connection is active, so a customer-service window exists.
 Publication enables automatic replies to valid individual messages on that phone.
 Imported history is not replayed. It does not send a campaign to old contacts.
 
+## 11. Optional pauses for friends and selected contacts
+
+Both exports include two disabled VGraple nodes before conversation-state loading.
+Leave both disabled if you do not use VGraple. To stop replies for selected contacts,
+follow [PAUSE-REPLIES.md](PAUSE-REPLIES.md): create the exact dropdown field, save
+a read-only credential, enable both nodes, and verify paused/unpaused senders.
+The `no_auto_reply` tag alone does not control this integration.
+

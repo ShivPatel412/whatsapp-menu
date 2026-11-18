@@ -6,7 +6,7 @@
 node --test tests/workflow.test.cjs
 ```
 
-These are simulated routing and export checks. They do not contact Meta/Google,
+These are simulated routing, contact-pause and export checks. They do not contact Meta/Google/VGraple,
 book a call, create credentials or touch your phone chats.
 
 ## Your real-account checks
@@ -38,6 +38,12 @@ to test the bot.
 
 ## Troubleshooting
 
+For optional VGraple contact pauses, run the Yes/No checks in
+[PAUSE-REPLIES.md](PAUSE-REPLIES.md). A paused sender must output zero items before
+state loading, menu building, Gemini, and sends. An unpaused sender must retain
+its original message and item pairing. Also check that lookup errors stop replies.
+Do not send test messages to friends or customers without their involvement.
+
 | Symptom | Check |
 |---|---|
 | No execution | Published callback, messages field, correct app/account subscription |
@@ -46,6 +52,8 @@ to test the bot.
 | Permissions missing | App WhatsApp use case and system-user asset assignments |
 | First contact gets no reply | Empty table result must keep Always Output Data enabled |
 | Question starts over | Both table nodes point to the same table; flow_state saved |
+| Contact still gets menu | Pause field = Yes; both optional nodes enabled; tag alone is insufficient |
+| VGraple lookup fails | Read-only credential, API limits and response; do not enable continue-on-error |
 | Reply accepted but not delivered | Delivery status error, service window, account restrictions |
 | Duplicates | Two active workflows/provider flows, concurrent requests, partial send failure |
 | LinkedIn fails in a web checker | Test in the phone browser; automated requests may be blocked |

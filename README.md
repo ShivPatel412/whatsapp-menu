@@ -90,6 +90,14 @@ Everything in the menu edition, plus Gemini answers to other text questions.
 Both workflows import **inactive**, with credentials removed and account
 identifiers replaced. Configure your own accounts before publishing.
 
+### Friends should get you, not your bot
+
+Already using VGraple? Set **Pause auto replies → Yes** on a contact to stop
+their menu and AI replies while you keep chatting normally. Both templates
+include the optional checks, **disabled until configured**.
+
+**[Set up contact pauses →](docs/PAUSE-REPLIES.md)**
+
 ## 🚀 Your first working menu
 
 1. Download the **menu-only** workflow.
@@ -117,6 +125,7 @@ Do not migrate or re-register an existing number to try this template.
 | Conversation table | **Load Conversation State** + **Save Conversation State** |
 | Meta credentials | WhatsApp Trigger + send-node credential pickers |
 | AI instructions and model | Gemini edition only |
+| Pause replies for selected contacts | Optional VGraple nodes; [setup guide](docs/PAUSE-REPLIES.md) |
 
 Questions appear **bold and first**. About Us contains Portfolio, Social Media,
 Book a Call, and FAQ, across two visible button messages.
@@ -147,7 +156,8 @@ Free allowances depend on the service and your account.
   partial multi-message failures can still produce duplicates.
 - **Text only.** Voice/image understanding and username-only senders without a
   numeric phone identity are not implemented. AI memory can reset on restart.
-- **No handoff lock.** Asking for a person does not pause future automatic replies.
+- **Manual contact pause.** Optional VGraple checks can stop replies for selected
+  contacts. Asking for a person does not automatically set that pause.
 
 The public templates passed local checks. They still need a fresh-account
 installation test; the original private deployment was tested live.
@@ -160,6 +170,7 @@ installation test; the original private deployment was tested live.
 | Keep an existing number/provider | [Coexistence guide](docs/COEXISTENCE.md) |
 | Check costs and free allowances | [Cost guide](docs/COSTS.md) |
 | Verify buttons and delivery | [Testing checklist](docs/TESTING.md) |
+| Stop automatic replies for friends | [VGraple contact pauses](docs/PAUSE-REPLIES.md) |
 | Run offline checks | `node --test tests/workflow.test.cjs` |
 | Record a demo Reel | [English script and shot list](reel/REEL.md) |
 

@@ -25,6 +25,10 @@ n8n, approve a Meta business, or migrate a phone number for you.
 [11. Test](#11-publish-and-test-on-the-test-number) ·
 [12. Existing number](#12-connect-an-existing-business-number-carefully)
 
+**Optional:** [Pause automatic replies for friends with VGraple](docs/PAUSE-REPLIES.md).
+Both pause nodes import disabled. Leave both disabled for the basic menu; configure
+and enable both together if you want per-contact pauses.
+
 ---
 
 ## 1. Prepare your accounts
@@ -301,6 +305,7 @@ intended reply is delivered once. Groups remain excluded.
 - [ ] Guided answers persist between messages.
 - [ ] Provider/phone app coexistence is still intact.
 - [ ] Someone will review human requests and call preferences.
+- [ ] If using VGraple contact pauses, both pause nodes are enabled and Yes/No tests pass.
 - [ ] You understand running costs and data handling.
 
 The workflow stores only the latest completed request per sender. Its
@@ -318,6 +323,8 @@ There is no automatic human-handoff pause, calendar booking, or attachment analy
 | Token permission missing | App use case and both asset assignments |
 | First contact gets nothing | Load node's Always Output Data |
 | Questions restart | Same table in both nodes; flow_state mapping |
+| Contact pause has no effect | Both pause nodes enabled; Pause auto replies field = Yes, not just a tag |
+| Stops at VGraple lookup | Read-only key, API response, workspace rate limit; errors stop replies |
 | Accepted but not delivered | Delivery error, service window, account restrictions |
 | Duplicate replies | Competing workflows/provider flows or concurrent events |
 

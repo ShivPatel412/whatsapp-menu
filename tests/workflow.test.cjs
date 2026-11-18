@@ -98,5 +98,39 @@ for(const file of files) {
     assert.equal(run({...value,metadata:{phone_number_id:'wrong'}}).length,0);
     assert.equal(run({entry:[{changes:[{field:'history',value}]}]}).length,0);
   });
+  test(file+': optional contact pause blocks before state and preserves item identity',()=>{
+    const lookup=node(wf,'Read VGraple Reply Preference');
+    const gate=node(wf,'Skip Paused Contacts');
+    assert.equal(lookup.disabled,true);
+    assert.equal(gate.disabled,true);
+    assert.equal(lookup.parameters.method,'GET');
+    assert.equal(lookup.parameters.genericAuthType,'httpBearerAuth');
+    assert.ok(lookup.parameters.url.includes('{{ $json.sender }}'));
+    assert.ok(!lookup.onError || lookup.onError==='stopWorkflow');
+    const next=name=>wf.connections[name].main[0].map(e=>e.node);
+    assert.deepEqual(next('Normalize Incoming'),[lookup.name]);
+    assert.deepEqual(next(lookup.name),[gate.name]);
+    assert.deepEqual(next(gate.name),['Load Conversation State']);
+    const fn=new Function('$input','$',gate.parameters.jsCode);
+    const incoming=[{sender:'15550000001',messageId:'pause-test',text:'HI'},
+      {sender:'15550000002',messageId:'control-test',text:'MENU'}];
+    const run=bodies=>fn({all:()=>bodies.map(json=>({json}))},name=>{
+      assert.equal(name,'Normalize Incoming');
+      return {itemMatching:i=>({json:incoming[i]})};
+    });
+    const contact=(pause,phone=incoming[0].sender)=>({contacts:[{phone,custom_fields:{pause_auto_replies:pause}}]});
+    assert.deepEqual(run([contact('Yes')]),[]);
+    for(const value of ['No','',null,undefined])assert.equal(run([contact(value)])[0].json,incoming[0]);
+    assert.equal(run([{contacts:[]}])[0].json,incoming[0]);
+    const mixed=run([contact('Yes'),contact('No',incoming[1].sender)]);
+    assert.equal(mixed.length,1);
+    assert.equal(mixed[0].json,incoming[1]);
+    assert.deepEqual(mixed[0].pairedItem,{item:1});
+    for(const bad of [{},{contacts:{}},{contacts:[{},{}]},{contacts:[null]},
+      {contacts:[false]},{contacts:[0]},contact('No','wrong'),
+      {contacts:[{phone:incoming[0].sender}]},contact('false'),contact(false),
+      {contacts:[{phone:incoming[0].sender,custom_fields:[]}]},{contacts:[],next_cursor:'more'}])
+      assert.throws(()=>run([bad]));
+  });
 }
 

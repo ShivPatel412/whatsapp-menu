@@ -24,10 +24,17 @@ products. Paid services have different data terms. Check
 [Gemini pricing](https://ai.google.dev/gemini-api/docs/pricing) and
 [terms](https://ai.google.dev/gemini-api/terms) before handling customer information.
 
-VGraple's free plan is a provider option, not a dependency of this workflow.
+VGraple's free plan is a provider option, not a dependency of the basic menu.
 Check its [current pricing](https://vgraple.co.in/pricing), limits and eligibility.
 The AI in this repository runs in n8n; it is not VGraple's paid “bring your own
 AI key” feature.
+
+The optional [contact-pause integration](PAUSE-REPLIES.md) requires a VGraple
+workspace and read-only API key. It adds one API GET per valid incoming individual
+message. The checked Free plan limit is 60 requests/minute per workspace, shared
+across keys; see [VGraple's API guide](https://vgraple.co.in/help/rest-api-quickstart)
+for current limits. Rate limits or lookup failures stop automatic replies for
+that execution. Both pause nodes are disabled in the public exports until configured.
 
 n8n's [Community edition](https://docs.n8n.io/hosting/community-edition-features/)
 has its own license. This repo does not redistribute or relicense n8n.

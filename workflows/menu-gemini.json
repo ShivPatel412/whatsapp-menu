@@ -183,8 +183,8 @@
     },
     {
       "parameters": {
-        "content": "# Configure before activation\n1. Keep inactive. Create the conversation table described in docs/SETUP.md.\n2. Replace REPLACE_PHONE_NUMBER_ID in Normalize Incoming with YOUR phone ID.\n3. Select YOUR table in both Load/Save Conversation State.\n4. Edit PROFILE and menu/FAQ copy in Route and Build.\n5. Choose YOUR Meta trigger and bearer credentials; choose a current Gemini model/key in the AI edition.\n6. Test on Meta's test number or a separate sender before publishing.\nGroups, history, echoes and stale messages are excluded. No automatic call booking or human notification is implemented. Latest completed request only, per sender. Deduplication is not atomic; not designed for concurrent high-volume traffic.\nNever use this template to migrate or disconnect an existing WhatsApp number. See docs/COEXISTENCE.md.",
-        "height": 600,
+        "content": "# Configure before activation\n1. Keep inactive. Create the conversation table described in docs/SETUP.md.\n2. Replace REPLACE_PHONE_NUMBER_ID in Normalize Incoming with YOUR phone ID.\n3. Select YOUR table in both Load/Save Conversation State.\n4. Edit PROFILE and menu/FAQ copy in Route and Build.\n5. Choose YOUR Meta trigger and bearer credentials; choose a current Gemini model/key in the AI edition.\n6. Test on Meta's test number or a separate sender before publishing.\nGroups, history, echoes and stale messages are excluded. No automatic call booking or human notification is implemented. Latest completed request only, per sender. Deduplication is not atomic; not designed for concurrent high-volume traffic.\nNever use this template to migrate or disconnect an existing WhatsApp number. See docs/COEXISTENCE.md.\nOptional friend/contact pause: the two VGraple pause nodes import DISABLED. To use them, follow docs/PAUSE-REPLIES.md, set your read-only credential, and enable BOTH nodes. In VGraple Contact Info set Pause auto replies = Yes. The no_auto_reply tag alone is not read by this integration. API errors stop replies when enabled.",
+        "height": 760,
         "width": 660
       },
       "id": "template-node-10",
@@ -318,6 +318,42 @@
         1328,
         1152
       ]
+    },
+    {
+      "id": "vgraple-reply-preference",
+      "name": "Read VGraple Reply Preference",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        656,
+        640
+      ],
+      "disabled": true,
+      "notes": "Optional: configure YOUR VGraple Read-only HTTP Bearer credential and enable BOTH pause nodes. See docs/PAUSE-REPLIES.md.",
+      "parameters": {
+        "method": "GET",
+        "url": "=https://crm.vgraple.co.in/api/v1/contacts?phone={{ $json.sender }}&limit=2",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBearerAuth",
+        "options": {
+          "timeout": 15000
+        }
+      }
+    },
+    {
+      "id": "vgraple-pause-gate",
+      "name": "Skip Paused Contacts",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        880,
+        640
+      ],
+      "disabled": true,
+      "notes": "Enable together with Read VGraple Reply Preference. Yes blocks menus and AI; No/blank allows. Lookup errors stop replies.",
+      "parameters": {
+        "jsCode": "const output = [];\nfor (const [index, item] of $input.all().entries()) {\n  const incoming = $('Normalize Incoming').itemMatching(index).json;\n  const body = item.json;\n  if (!Array.isArray(body.contacts) || body.contacts.length > 1 || body.next_cursor) {\n    throw new Error('VGraple contact lookup was incomplete or ambiguous; reply stopped.');\n  }\n  const contact = body.contacts[0];\n  if (body.contacts.length) {\n    if (!contact || contact.phone !== incoming.sender || !contact.custom_fields || typeof contact.custom_fields !== 'object' || Array.isArray(contact.custom_fields)) {\n      throw new Error('VGraple contact identity or fields could not be verified; reply stopped.');\n    }\n    const pause = contact.custom_fields.pause_auto_replies;\n    if (pause === 'Yes') continue;\n    if (pause !== undefined && pause !== null && pause !== '' && pause !== 'No') {\n      throw new Error('VGraple pause preference is invalid; reply stopped.');\n    }\n  }\n  output.push({json: incoming, pairedItem: {item: index}});\n}\nreturn output;"
+      }
     }
   ],
   "connections": {
@@ -398,7 +434,7 @@
       "main": [
         [
           {
-            "node": "Load Conversation State",
+            "node": "Read VGraple Reply Preference",
             "type": "main",
             "index": 0
           }
@@ -459,6 +495,28 @@
           }
         ]
       ]
+    },
+    "Read VGraple Reply Preference": {
+      "main": [
+        [
+          {
+            "node": "Skip Paused Contacts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Skip Paused Contacts": {
+      "main": [
+        [
+          {
+            "node": "Load Conversation State",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
   "settings": {
@@ -467,4 +525,3 @@
   "active": false,
   "pinData": {}
 }
-
