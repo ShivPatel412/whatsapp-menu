@@ -1,0 +1,470 @@
+{
+  "name": "WhatsApp Menu + Guided Quotes + Gemini (Starter)",
+  "nodes": [
+    {
+      "parameters": {
+        "updates": [
+          "messages"
+        ],
+        "options": {}
+      },
+      "id": "template-node-1",
+      "name": "WhatsApp Trigger",
+      "type": "n8n-nodes-base.whatsAppTrigger",
+      "typeVersion": 1,
+      "position": [
+        336,
+        400
+      ],
+      "webhookId": "00000000-0000-4000-8000-000000000001"
+    },
+    {
+      "parameters": {
+        "jsCode": "const output = [];\nconst seen = new Set();\nfor (const [itemIndex,item] of $input.all().entries()) {\n  const root = item.json.body ?? item.json;\n  if (root.field && root.field !== 'messages') continue;\n  const values = root.entry ? root.entry.flatMap(e => (e.changes ?? []).filter(c => c.field === 'messages').map(c => c.value)) : [root.value ?? root];\n  for (const value of values) {\n    if (String(value?.metadata?.phone_number_id ?? '') !== 'REPLACE_PHONE_NUMBER_ID') continue;\n    for (const message of value.messages ?? []) {\n      if (value.group_id || value.metadata?.group_id || message.group_id || message.context?.group_id || message.recipient_type === 'group') continue;\n      const sender = String(message.from ?? '');\n      const timestamp = Number(message.timestamp);\n      if (!/^\\d{7,15}$/.test(sender) || !message.id || seen.has(message.id)) continue;\n      if (!Number.isFinite(timestamp) || timestamp < Date.now()/1000-86400 || timestamp > Date.now()/1000+300) continue;\n      seen.add(message.id);\n      output.push({json:{\n        sender,messageId:String(message.id),messageType:message.type ?? '',\n        choice:String(message.interactive?.button_reply?.id ?? message.interactive?.list_reply?.id ?? message.button?.payload ?? ''),\n        text:String(message.text?.body ?? message.button?.text ?? '').trim(),\n        senderPhoneId:String(value.metadata.phone_number_id),timestamp\n      },pairedItem:{item:itemIndex}});\n    }\n  }\n}\nreturn output;"
+      },
+      "id": "template-node-2",
+      "name": "Normalize Incoming",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        656,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Edit this public profile before activating the workflow.\nconst PROFILE = {\n  name:'Your Business',\n  portfolio:'https://example.com',\n  instagram:'https://www.instagram.com/YOUR_HANDLE/',\n  linkedin:'https://www.linkedin.com/in/YOUR_HANDLE/'\n};\nconst {sender,text,choice,messageType,messageId}= $('Normalize Incoming').item.json;\nconst processed = JSON.parse($json.processed_ids || '[]');\nif (processed.includes(messageId)) return null;\nconst known = $json.welcomed === true || Boolean($getWorkflowStaticData('global').seenSenders?.[sender]);\nlet flow;\ntry { flow=JSON.parse($json.flow_state || '{}'); } catch { flow={}; }\nif (!flow || typeof flow!=='object' || Array.isArray(flow)) flow={};\nflow.answers=flow.answers && typeof flow.answers==='object' && !Array.isArray(flow.answers) ? flow.answers : {};\nconst focus = raw => {\n  const body=raw.replaceAll('BUSINESS_NAME',PROFILE.name).replaceAll('PORTFOLIO_URL',PROFILE.portfolio).replaceAll('INSTAGRAM_URL',PROFILE.instagram).replaceAll('LINKEDIN_URL',PROFILE.linkedin);\n  return body.startsWith('*') ? body : body.replace(/^([^\\n]*\\?)/,'*$1*');\n};\nconst buttons = (body, entries) => ({\n  messaging_product:'whatsapp',to:sender,type:'interactive',\n  interactive:{type:'button',body:{text:focus(body)},action:{buttons:entries.map(([id,title])=>({type:'reply',reply:{id,title}}))}}\n});\nconst plain = body => ({messaging_product:'whatsapp',to:sender,type:'text',text:{body:focus(body)}});\nconst list = (body, label, section, entries) => ({\n  messaging_product:'whatsapp',to:sender,type:'interactive',\n  interactive:{type:'list',body:{text:focus(body)},action:{button:label,sections:[{\n    title:section,rows:entries.map(([id,title])=>({id,title}))\n  }]}}\n});\nconst main = () => buttons('*How can I help you today?*\\nWelcome to BUSINESS_NAME. Choose an option:',[\n  ['menu_services','1 My Service'],['menu_quote','2 Get a Quote'],['menu_about','3 About Us']\n]);\nconst about = () => [\n  buttons('*What would you like to explore about BUSINESS_NAME?*',[\n    ['menu_portfolio','1 View Portfolio'],['menu_social','2 Social Media'],['menu_call','3 Book a Call']\n  ]),\n  buttons('More about BUSINESS_NAME:',[['menu_faq','4 FAQ'],['menu_main','Main Menu']])\n];\nconst prompts = {\n  service:'*Which service do you need?*\\nChoose an option or type the service name.',\n  details:'*What would you like this service to do?*\\nDescribe your project, required features, or any other requirements.',\n  budget:'*What is your approximate budget?*\\nPlease include the currency. You can also say “not decided”.',\n  timeline:'*When would you like the project completed?*\\nShare your target date or preferred timeframe.'\n};\nconst ask = () => flow.step==='service'\n  ? buttons(prompts.service,[['service_web','Web Development'],['service_ai','AI Automation'],['service_other','Other Service']])\n  : plain(prompts[flow.step] || prompts.service);\nconst resetFlow = () => { flow={last_request:flow.last_request,answers:{}}; };\nconst acceptService = value => { flow.answers.service=value; flow.step=flow.mode==='quote'?'budget':'details'; };\nconst back = body => buttons(body,[['menu_main','Main Menu'],['menu_human','Talk to a Person']]);\nconst faqAnswers = {\n  faq_services:'What services are available?\\nBUSINESS_NAME offers website development, online stores and AI automation. Choose Our Services from the main menu to share what you need.',\n  faq_price:'How much will my project cost?\\nA quote depends on your requirements, features and scope. Choose Get a Quote and share your needs, approximate budget and preferred deadline. BUSINESS_NAME must confirm the price.',\n  faq_timeline:'How long will my project take?\\nThe timeline depends on scope, content readiness and required features. Share your preferred deadline; BUSINESS_NAME must review the requirements and confirm a schedule.',\n  faq_start:'What do I need to get started?\\nShare a short business description, required pages or features, reference websites, available text/images/logo, approximate budget and preferred deadline.',\n  faq_support:'How do I get help with an existing project?\\nChoose Existing Customer and share your name, website or project reference, and the update or issue. This assistant cannot access live project records or confirm completion.',\n  faq_call:'How do I book a call?\\nChoose Book a Call and share your preferred date, time and time zone. BUSINESS_NAME must confirm availability; sending a preference does not book an appointment.'\n};\nlet payload, needsAI=false;\nif(choice && !['menu_services','menu_quote','service_web','service_ai','service_other','web_business','web_shop'].includes(choice)) resetFlow();\nconst serviceNames={service_web:'Web Development',service_ai:'AI Automation',web_business:'Business Website',web_shop:'Online Store'};\nif(choice==='menu_main'||/^(hi|hello|start|menu|restart)$/i.test(text)) { resetFlow(); payload=main(); }\nelse if(choice==='menu_about') { resetFlow(); payload=about(); }\nelse if(choice==='menu_services'||choice==='menu_quote') {\n  flow={last_request:flow.last_request,mode:choice==='menu_quote'?'quote':'service',step:'service',answers:{}};\n  payload=ask();\n}\nelse if(Object.prototype.hasOwnProperty.call(serviceNames,choice)||choice==='service_other') {\n  if (!flow.mode || !flow.step) flow={last_request:flow.last_request,mode:'service',step:'service',answers:{}};\n  if(choice==='service_other') { flow.step='service'; payload=plain('*What service do you need?*\\nPlease type the service name.'); }\n  else { acceptService(serviceNames[choice]); payload=ask(); }\n}\nelse if(flow.step && !choice) {\n  if(messageType!=='text'||!text) payload=ask();\n  else if(text.length>600) payload=plain('*Could you shorten your answer to 600 characters?*\\n'+prompts[flow.step]);\n  else {\n    if(flow.step==='service') acceptService(text);\n    else if(flow.step==='details'||flow.step==='budget') { flow.answers[flow.step]=text; flow.step='timeline'; }\n    else if(flow.step==='timeline') {\n      flow.answers.timeline=text;\n      const request={type:flow.mode,...flow.answers,received_at:new Date().toISOString()};\n      const summary='*Please review your request*\\nService: '+request.service+\n        (request.type==='quote'?'\\nBudget: '+request.budget:'\\nDetails: '+request.details)+\n        '\\nTimeline: '+request.timeline+'\\n\\nBUSINESS_NAME must review and confirm scope, price and availability. This is not a confirmed quote or booking.';\n      flow={last_request:request,answers:{}};\n      payload=[plain(summary),...about()];\n    } else resetFlow();\n    if(!payload) payload=flow.step?ask():main();\n  }\n}\nelse if(choice==='menu_human') payload=plain('*How can BUSINESS_NAME help you?*\\nPlease share your name, project details and preferred contact time. BUSINESS_NAME must review this conversation before contacting you.');\nelse if(choice==='menu_portfolio') payload=buttons('Explore BUSINESS_NAME’s portfolio and website:\\nPORTFOLIO_URL\\n\\nType MENU whenever you want to return.',[\n  ['menu_call','Book a Call'],['menu_social','Social Media'],['menu_main','Main Menu']]);\nelse if(choice==='menu_social') payload=buttons('Connect with BUSINESS_NAME:\\nInstagram: INSTAGRAM_URL\\nLinkedIn: LINKEDIN_URL\\n\\nChoose a profile below for its link.',[\n  ['social_instagram','Instagram'],['social_linkedin','LinkedIn'],['menu_main','Main Menu']]);\nelse if(choice==='social_instagram') payload=back('Instagram — your profile\\nINSTAGRAM_URL');\nelse if(choice==='social_linkedin') payload=back('LinkedIn — BUSINESS_NAME\\nLINKEDIN_URL');\nelse if(choice==='menu_call') payload=back('*When would you like to speak with BUSINESS_NAME?*\\nPlease share your name, what you’d like to discuss, and your preferred date, time and time zone. BUSINESS_NAME must review and confirm availability. This is a call request, not a confirmed appointment.');\nelse if(choice==='menu_existing') payload=buttons('Welcome back! What do you need help with? This assistant cannot access live project records.',[\n  ['existing_update','Project Update'],['existing_change','Request a Change'],['existing_help','Technical Help']]);\nelse if(choice==='existing_update') payload=back('*What project update do you need?*\\nPlease share your name, website or project reference, and the update you need. BUSINESS_NAME must review the conversation to confirm the current project status.');\nelse if(choice==='existing_change') payload=back('*What would you like changed?*\\nPlease share your name, website or project reference, and the changes you need. Include your preferred deadline. BUSINESS_NAME must confirm the scope, cost and schedule.');\nelse if(choice==='existing_help') payload=back('*What issue are you facing?*\\nPlease share your website or project reference, describe the issue and say when it started. You can send a screenshot with a text description. Do not share passwords, API keys or payment details. BUSINESS_NAME must review the issue.');\nelse if(choice==='menu_faq') payload=list('Frequently asked questions — choose a topic.', 'Choose a Question', 'FAQs',[\n  ['faq_services','Services'],['faq_price','Pricing & Quotes'],['faq_timeline','Project Timeline'],\n  ['faq_start','Getting Started'],['faq_support','Existing Project Help'],['faq_call','Booking a Call'],['menu_main','Main Menu']]);\nelse if(Object.prototype.hasOwnProperty.call(faqAnswers,choice)) payload=back(faqAnswers[choice]);\nelse if(!known && messageType==='text' && text) payload=main();\nelse if(messageType!=='text' && !choice) payload=plain('Please send a text message or use the menu. Type MENU for options.');\nelse if(choice) payload=main();\nelse if(text) needsAI=true;\nelse return null;\n// shortcut: retained IDs cover the latest 100 successful replies per sender; use an atomic ledger for concurrent or high-volume traffic.\nreturn {json:{sender,text,choice,messageId,needsAI,payload,\n  welcomed:known || Boolean(text && messageType==='text') || Boolean(choice),\n  processed_ids:JSON.stringify([...processed,messageId].slice(-100)),\n  flow_state:JSON.stringify(flow),\n  last_seen:new Date().toISOString()\n}};"
+      },
+      "id": "template-node-3",
+      "name": "Route and Build",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        896,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "1dffac39-0f17-40bf-8734-7a635e6f33bf",
+              "leftValue": "={{ $json.needsAI }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "template-node-4",
+      "name": "Needs AI?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1296,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.text }}",
+        "options": {
+          "systemMessage": "You are the customer-service assistant for the business using this menu. Be concise and helpful. Ask at most one focused question at a time and put it first in WhatsApp bold using single asterisks. The business offers website development and AI automation; the owner must customize these services and this prompt before launch. Do not invent prices, project status, deadlines, availability, completed actions or policies. Human requests require the owner to review this conversation. Never claim a notification was sent or a call was booked. Call requests only collect preferences; the owner confirms. Do not ask for passwords, API keys or payment details. Type MENU for the main choices. Keep replies under 600 characters. You cannot analyze attachments or access live project records."
+        }
+      },
+      "id": "template-node-5",
+      "name": "AI Lead Assistant",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 2.2,
+      "position": [
+        1664,
+        384
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "={{ $(\"Route and Build\").item.json.sender }}",
+        "contextWindowLength": 8
+      },
+      "id": "template-node-6",
+      "name": "Window Memory",
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.2,
+      "position": [
+        1824,
+        800
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const context = $('Route and Build').item.json;\nconst fallback = 'Sorry, the AI assistant is temporarily unavailable. Please try again or type MENU for options.';\nconst response = $json.error ? fallback : String($json.output ?? $json.text ?? '').trim() || fallback;\nreturn {json:{payload:{messaging_product:'whatsapp',to:context.sender,type:'text',text:{body:response.slice(0,1000)}}}};"
+      },
+      "id": "template-node-7",
+      "name": "Build AI Reply",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1984,
+        576
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ 'https://graph.facebook.com/v27.0/' + $('Normalize Incoming').item.json.senderPhoneId + '/messages' }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBearerAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $json.payload }}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "template-node-8",
+      "name": "Send AI Reply",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2208,
+        576
+      ],
+      "retryOnFail": false,
+      "maxTries": 3,
+      "waitBetweenTries": 1500
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ 'https://graph.facebook.com/v27.0/' + $('Normalize Incoming').item.json.senderPhoneId + '/messages' }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBearerAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $json.payload }}",
+        "options": {
+          "batching": {
+            "batch": {
+              "batchSize": 1,
+              "batchInterval": 500
+            }
+          },
+          "timeout": 15000
+        }
+      },
+      "id": "template-node-9",
+      "name": "Send Button or Menu",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2032,
+        1168
+      ],
+      "retryOnFail": false,
+      "maxTries": 3,
+      "waitBetweenTries": 1500
+    },
+    {
+      "parameters": {
+        "content": "# Configure before activation\n1. Keep inactive. Create the conversation table described in docs/SETUP.md.\n2. Replace REPLACE_PHONE_NUMBER_ID in Normalize Incoming with YOUR phone ID.\n3. Select YOUR table in both Load/Save Conversation State.\n4. Edit PROFILE and menu/FAQ copy in Route and Build.\n5. Choose YOUR Meta trigger and bearer credentials; choose a current Gemini model/key in the AI edition.\n6. Test on Meta's test number or a separate sender before publishing.\nGroups, history, echoes and stale messages are excluded. No automatic call booking or human notification is implemented. Latest completed request only, per sender. Deduplication is not atomic; not designed for concurrent high-volume traffic.\nNever use this template to migrate or disconnect an existing WhatsApp number. See docs/COEXISTENCE.md.",
+        "height": 600,
+        "width": 660
+      },
+      "id": "template-node-10",
+      "name": "SETUP - READ FIRST",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -224,
+        -368
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "REPLACE_CONVERSATION_TABLE_ID"
+        },
+        "matchType": "allConditions",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "sender",
+              "keyValue": "={{ $json.sender }}"
+            }
+          ]
+        },
+        "limit": 1
+      },
+      "id": "template-node-11",
+      "name": "Load Conversation State",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        768,
+        400
+      ],
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "operation": "upsert",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "REPLACE_CONVERSATION_TABLE_ID"
+        },
+        "matchType": "allConditions",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "sender",
+              "keyValue": "={{ $('Route and Build').item.json.sender }}"
+            }
+          ]
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "sender": "={{ $('Route and Build').item.json.sender }}",
+            "processed_ids": "={{ $('Route and Build').item.json.processed_ids }}",
+            "last_seen": "={{ $('Route and Build').item.json.last_seen }}",
+            "welcomed": "={{ $('Route and Build').item.json.welcomed }}",
+            "flow_state": "={{ $('Route and Build').item.json.flow_state }}"
+          },
+          "schema": [
+            {
+              "id": "sender",
+              "displayName": "sender",
+              "type": "string"
+            },
+            {
+              "id": "processed_ids",
+              "displayName": "processed_ids",
+              "type": "string"
+            },
+            {
+              "id": "last_seen",
+              "displayName": "last_seen",
+              "type": "dateTime"
+            },
+            {
+              "id": "welcomed",
+              "displayName": "welcomed",
+              "type": "boolean"
+            },
+            {
+              "id": "flow_state",
+              "displayName": "flow_state",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "template-node-12",
+      "name": "Save Conversation State",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        2560,
+        656
+      ]
+    },
+    {
+      "parameters": {
+        "modelName": "models/gemini-3.1-flash-lite",
+        "options": {
+          "maxOutputTokens": 1024
+        }
+      },
+      "id": "template-node-13",
+      "name": "Gemini Chat Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1.2,
+      "position": [
+        1632,
+        800
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "return $input.all().flatMap((item,index) => (Array.isArray(item.json.payload) ? item.json.payload : [item.json.payload]).map(payload => ({json:{...item.json,payload},pairedItem:{item:index}})));"
+      },
+      "id": "template-node-14",
+      "name": "Expand Menu Replies",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1328,
+        1152
+      ]
+    }
+  ],
+  "connections": {
+    "WhatsApp Trigger": {
+      "main": [
+        [
+          {
+            "node": "Normalize Incoming",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route and Build": {
+      "main": [
+        [
+          {
+            "node": "Needs AI?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Needs AI?": {
+      "main": [
+        [
+          {
+            "node": "AI Lead Assistant",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Expand Menu Replies",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Lead Assistant": {
+      "main": [
+        [
+          {
+            "node": "Build AI Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build AI Reply": {
+      "main": [
+        [
+          {
+            "node": "Send AI Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Window Memory": {
+      "ai_memory": [
+        [
+          {
+            "node": "AI Lead Assistant",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize Incoming": {
+      "main": [
+        [
+          {
+            "node": "Load Conversation State",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load Conversation State": {
+      "main": [
+        [
+          {
+            "node": "Route and Build",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send AI Reply": {
+      "main": [
+        [
+          {
+            "node": "Save Conversation State",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Button or Menu": {
+      "main": [
+        [
+          {
+            "node": "Save Conversation State",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gemini Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Lead Assistant",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Expand Menu Replies": {
+      "main": [
+        [
+          {
+            "node": "Send Button or Menu",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "active": false,
+  "pinData": {}
+}
+
