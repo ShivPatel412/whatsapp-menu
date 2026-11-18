@@ -1,0 +1,15 @@
+A WhatsApp menu that asks the next useful question.
+
+HI → My Service / Get a Quote / About Us
+Get a Quote → service → budget → timeline → summary
+
+I’ve packaged the workflow with a setup guide, FAQs, editable portfolio/social links, and an optional Gemini version.
+
+The template is free to download. Hosting, Gemini quotas and Meta messaging charges can still apply. Existing WhatsApp Business app numbers need a compatible coexistence setup; don’t migrate your number just to try the demo.
+
+Get the repository from the link in my bio and start with Meta’s test number.
+
+#n8n #WhatsAppAutomation #BusinessAutomation #GeminiAPI #WorkflowAutomation
+
+PUBLISHING NOTE — remove this note only after the public repo exists and its link is actually in the bio. This caption does not mean the bio has been updated.
+

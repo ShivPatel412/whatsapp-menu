@@ -1,0 +1,13 @@
+Watch my WhatsApp collect a quote request.
+I send Hi, and three choices appear.
+My Service, Get a Quote, and About Us.
+Choose Get a Quote.
+It asks for the service, budget, and timeline, one question at a time.
+Then it shows the request summary.
+About Us opens portfolio links, social profiles, FAQs, and a call request.
+The workflow uses n8n and the official WhatsApp API.
+Gemini is optional. The basic menu needs no AI key.
+I’m sharing the template and full setup guide on GitHub.
+The template is free. Hosting and API limits still apply.
+Save this, then get the setup from the repository linked in my bio.
+

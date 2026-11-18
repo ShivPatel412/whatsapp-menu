@@ -1,0 +1,9 @@
+.env
+.env.*
+!.env.example
+credentials*.json
+*private-export*
+*.sqlite*
+node_modules/
+.DS_Store
+
